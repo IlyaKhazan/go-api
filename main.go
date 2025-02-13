@@ -10,19 +10,33 @@ import (
 )
 
 type Flight struct {
-	Flight_id        int    `json:"id"`
+	// переделать нейминг (camel case)
+	Flight_id        int    `gorm:"flight_id" json:"id"`
 	Destination_from string `json:"destination_from"`
 	Destination_to   string `json:"destination_to"`
 }
 
+// передалть в БД
 var flights []Flight
 
+// var conn *pgx.Conn
+
+// exmaple connString postgres://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres
+// реализовать func getConnect(connString string) *pgx.Conn, error
+
+// func insertDBFlight()
+// func updateDBFlight()
+// func getDBFlight(id)
+// func getAllDBFlight(id)
+// func deleteDBFlight()
+
 func main() {
+	//conn, err := getConnect
 	flights = make([]Flight, 0)
 	flights = append(flights, Flight{Flight_id: 1, Destination_from: "A", Destination_to: "B"})
 
+	// вынесети в func getRounter
 	router := mux.NewRouter()
-
 	router.HandleFunc("/flights", getFlights).Methods("GET")
 	router.HandleFunc("/flights/{id}", getFlight).Methods("GET")
 	router.HandleFunc("/flights", createFlight).Methods("POST")
@@ -45,12 +59,15 @@ func getFlight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, flight := range flights {
-		if flight.Flight_id == id {
-			json.NewEncoder(w).Encode(flight)
-			return
-		}
-	}
+	// TODO:
+	// flight, err := getDBFlight()
+
+	// for _, flight := range flights {
+	// 	if flight.Flight_id == id {
+	// 		json.NewEncoder(w).Encode(flight)
+	// 		return
+	// 	}
+	// }
 	http.NotFound(w, r)
 }
 
