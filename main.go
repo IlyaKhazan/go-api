@@ -2,22 +2,18 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 
+	"go-api/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/joho/godotenv"
+	"github.com/pkg/errors"
 )
-
-func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
-	}
-}
 
 type Flight struct {
 	FlightID        int    `json:"id"`
@@ -27,37 +23,202 @@ type Flight struct {
 
 var dbConn *pgx.Conn
 
-func getConnect(urlString string) (*pgx.Conn, error) {
-	fmt.Printf("Connecting to Postgres: %s\n", urlString)
-
-	conn, err := pgx.Connect(context.Background(), urlString)
+func GetAllFlightsFromDB() ([]Flight, error) {
+	rows, err := dbConn.Query(context.Background(), "SELECT id, destination_from, destination_to FROM public.flights WHERE deleted_at IS NULL")
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to database: %v", err)
+		return nil, errors.Wrap(err, "failed to fetch flights from database")
 	}
-	return conn, nil
+	defer rows.Close()
+
+	var flights []Flight
+	for rows.Next() {
+		var flight Flight
+		if err := rows.Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo); err != nil {
+			return nil, errors.Wrap(err, "error scanning flights")
+		}
+		flights = append(flights, flight)
+	}
+
+	if len(flights) == 0 {
+		return nil, pgx.ErrNoRows // ✅ Return `pgx.ErrNoRows` if no active flights exist
+	}
+
+	return flights, nil
+}
+
+func GetFlightByIDFromDB(id int) (*Flight, error) {
+	var flight Flight
+	err := dbConn.QueryRow(context.Background(),
+		"SELECT id, destination_from, destination_to FROM public.flights WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, pgx.ErrNoRows // ✅ Return `pgx.ErrNoRows` for deleted or non-existing flights
+		}
+		return nil, errors.Wrap(err, "failed to fetch flight")
+	}
+
+	return &flight, nil
+}
+
+// InsertFlightToDB inserts a new flight into the database
+func InsertFlightToDB(flight *Flight) error {
+	err := dbConn.QueryRow(context.Background(),
+		"INSERT INTO flights (destination_from, destination_to) VALUES ($1, $2) RETURNING id",
+		flight.DestinationFrom, flight.DestinationTo).Scan(&flight.FlightID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to insert flight")
+	}
+
+	return nil
+}
+
+// UpdateFlightInDB updates a flight in the database
+func UpdateFlightInDB(flight *Flight) error {
+	result, err := dbConn.Exec(context.Background(),
+		"UPDATE flights SET destination_from=$1, destination_to=$2 WHERE id=$3",
+		flight.DestinationFrom, flight.DestinationTo, flight.FlightID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to update flight")
+	}
+
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows // ✅ Handle "no rows updated" correctly
+	}
+
+	return nil
+}
+
+// DeleteFlightFromDB removes a flight by ID
+func DeleteFlightFromDB(id int) error {
+	result, err := dbConn.Exec(context.Background(), "UPDATE public.flights SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL", id)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to soft delete flight")
+	}
+
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows // ✅ Return `pgx.ErrNoRows` if flight is already deleted or doesn't exist
+	}
+
+	return nil
+}
+
+// Handlers
+
+func getAllFlightsHandler(c *gin.Context) {
+	flights, err := GetAllFlightsFromDB()
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "No flights found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch flights"})
+		return
+	}
+
+	c.JSON(http.StatusOK, flights)
+}
+
+func getFlightHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("flight_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight ID"}) // ✅ 400 Bad Request
+		return
+	}
+
+	flight, err := GetFlightByIDFromDB(id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found"}) // ✅ 404 Not Found (for both missing & deleted flights)
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve flight"}) // ✅ 500 Internal Server Error
+		return
+	}
+
+	c.JSON(http.StatusOK, flight) // ✅ 200 OK (only returns non-deleted flights)
+}
+
+func insertFlightHandler(c *gin.Context) {
+	var flight Flight
+	if err := c.ShouldBindJSON(&flight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight data"})
+		return
+	}
+
+	if err := InsertFlightToDB(&flight); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create flight"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Flight created", "flight": flight})
+}
+
+func updateFlightHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("flight_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight ID"})
+		return
+	}
+
+	var flight Flight
+	if err := c.ShouldBindJSON(&flight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight data"})
+		return
+	}
+
+	flight.FlightID = id
+	err = UpdateFlightInDB(&flight)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found"}) // ✅ 404 Not Found
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update flight"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Flight updated", "flight": flight})
+}
+
+func deleteFlightHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("flight_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight ID"})
+		return
+	}
+
+	err = DeleteFlightFromDB(id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found or already deleted"}) // ✅ Return 404 if no action was taken
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete flight"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Flight successfully marked as deleted"}) // ✅ Return 200 instead of 204
 }
 
 func main() {
-	var err error
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = fmt.Sprintf(
-			"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASSWORD"),
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_PORT"),
-			os.Getenv("DB_NAME"),
-		)
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	dbConn, err = getConnect(dbURL)
+	dbConn, err = config.GetDBConnect(cfg)
 	if err != nil {
-		log.Fatalf("Database connection failed: %v", err)
+		slog.Error("Database connection failed", "error", err)
+		os.Exit(1)
 	}
 	defer dbConn.Close(context.Background())
 
-	log.Println("Connected to PostgreSQL successfully!")
+	slog.Info("Application started successfully!")
 	router := getRouter()
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Ошибка запуска сервера: %v", err)
@@ -67,115 +228,11 @@ func main() {
 func getRouter() *gin.Engine {
 	router := gin.Default()
 
-	router.GET("/flights", getAllDBFlights)
-	router.GET("/flights/:flight_id", getDBFlight)
-	router.POST("/flights", insertDBFlight)
-	router.PUT("/flights/:flight_id", updateDBFlight)
-	router.DELETE("/flights/:flight_id", deleteDBFlight)
+	router.GET("/flights", getAllFlightsHandler)
+	router.GET("/flights/:flight_id", getFlightHandler)
+	router.POST("/flights", insertFlightHandler)
+	router.PUT("/flights/:flight_id", updateFlightHandler)
+	router.DELETE("/flights/:flight_id", deleteFlightHandler)
 
 	return router
-}
-
-func getAllDBFlights(c *gin.Context) {
-	rows, err := dbConn.Query(context.Background(), "SELECT id, destination_from, destination_to FROM public.flights")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch flights"})
-		return
-	}
-	defer rows.Close()
-
-	var flights []Flight
-	for rows.Next() {
-		var flight Flight
-		if err := rows.Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning flights"})
-			return
-		}
-		flights = append(flights, flight)
-	}
-
-	c.JSON(http.StatusOK, flights)
-}
-
-func getDBFlight(c *gin.Context) {
-	idStr := c.Param("flight_id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Flight ID is invalid"})
-		return
-	}
-
-	var flight Flight
-	err = dbConn.QueryRow(context.Background(), "SELECT id, destination_from, destination_to FROM public.flights WHERE id=$1", id).
-		Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo)
-
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, flight)
-}
-
-func insertDBFlight(c *gin.Context) {
-	var flight Flight
-	if err := c.ShouldBindJSON(&flight); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err := dbConn.QueryRow(context.Background(),
-		"INSERT INTO public.flights (destination_from, destination_to) VALUES ($1, $2) RETURNING id",
-		flight.DestinationFrom, flight.DestinationTo).Scan(&flight.FlightID)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create flight"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Flight successfully created", "flight": flight})
-}
-
-func updateDBFlight(c *gin.Context) {
-	idStr := c.Param("flight_id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Flight ID is invalid"})
-		return
-	}
-
-	var updatedFlight Flight
-	if err := c.ShouldBindJSON(&updatedFlight); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flight data"})
-		return
-	}
-
-	result, err := dbConn.Exec(context.Background(),
-		"UPDATE public.flights SET destination_from=$1, destination_to=$2 WHERE id=$3",
-		updatedFlight.DestinationFrom, updatedFlight.DestinationTo, id)
-
-	if err != nil || result.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found"})
-		return
-	}
-
-	updatedFlight.FlightID = id
-	c.JSON(http.StatusOK, gin.H{"message": "Flight updated successfully", "flight": updatedFlight})
-}
-
-func deleteDBFlight(c *gin.Context) {
-	idStr := c.Param("flight_id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Flight ID is invalid"})
-		return
-	}
-
-	result, err := dbConn.Exec(context.Background(), "DELETE FROM public.flights WHERE id=$1", id)
-	if err != nil || result.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Flight not found"})
-		return
-	}
-
-	c.Status(http.StatusNoContent) // ✅ Return 204 No Content on success
 }

@@ -3,17 +3,17 @@ version: "3.9"
 services:
   go-gin-api:
     build: .
-    container_name: go-gin-api
     ports:
       - "8080:8080"
     environment:
-      - DB_HOST=postgres  
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=mysecretpassword
-      - DB_NAME=postgres
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy  # ✅ Wait for PostgreSQL to be ready
     networks:
       - mynetwork
     restart: always
@@ -29,9 +29,16 @@ services:
       - POSTGRES_DB=postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - mynetwork
     restart: always
+    healthcheck:  # ✅ Added healthcheck to ensure PostgreSQL is ready before go-gin-api starts
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s  # Wait 10s before starting healthchecks
 
 volumes:
   pgdata:
