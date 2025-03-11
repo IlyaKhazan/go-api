@@ -6,10 +6,10 @@ import (
 	"os"
 
 	"go-api/config"
+	"go-api/internal/app"
 	"go-api/internal/handler"
+	"go-api/internal/repository"
 	"go-api/internal/usecase"
-
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -28,19 +28,14 @@ func main() {
 	}
 	defer dbConn.Close(context.Background())
 
-	flightUC := usecase.New(dbConn)
+	flightRepo := repository.NewFlightRepository(dbConn)
+	flightUC := usecase.NewFlightUsecase(flightRepo)
+	handle := handler.New(flightUC)
 
-	h := handler.New(flightUC)
+	router := app.GetRouter(handle)
 
-	router := gin.Default()
-	router.GET("/flights", h.GetAllFlightsHandler)
-	router.GET("/flights/:flight_id", h.GetFlightHandler)
-	router.POST("/flights", h.InsertFlightHandler)
-	router.PUT("/flights/:flight_id", h.UpdateFlightHandler)
-	router.DELETE("/flights/:flight_id", h.DeleteFlightHandler)
-
-	slog.Info("Server running on port 8080")
-	if err := router.Run(":8080"); err != nil {
+	slog.Info("Server running on port", "address", cfg.Address)
+	if err := router.Run(cfg.Address); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
