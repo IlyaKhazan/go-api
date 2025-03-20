@@ -9,6 +9,7 @@ import (
 	"go-api/internal/app"
 	"go-api/internal/handler"
 	"go-api/internal/repository"
+	"go-api/internal/storage"
 	"go-api/internal/usecase"
 )
 
@@ -21,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dbConn, err := config.GetDBConnect(cfg)
+	dbConn, err := storage.GetDBConnect(cfg)
 	if err != nil {
 		slog.Error("Database connection failed", "error", err)
 		os.Exit(1)
@@ -37,6 +38,6 @@ func main() {
 	slog.Info("Server running on port", "address", cfg.Address)
 	if err := router.Run(cfg.Address); err != nil {
 		slog.Error("Failed to start server", "error", err)
-		os.Exit(1)
+		return
 	}
 }

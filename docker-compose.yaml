@@ -13,7 +13,7 @@ services:
       - DB_NAME=${DB_NAME}
     depends_on:
       postgres:
-        condition: service_healthy  # ✅ Wait for PostgreSQL to be ready
+        condition: service_healthy 
     networks:
       - mynetwork
     restart: always

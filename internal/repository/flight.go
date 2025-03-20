@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -42,7 +43,7 @@ func (r *FlightRepository) GetAllFlights(ctx context.Context) ([]model.FlightDTO
 	return flights, nil
 }
 
-func (r *FlightRepository) GetFlightByID(ctx context.Context, id int) (*model.FlightDTO, error) {
+func (r *FlightRepository) GetFlightByID(ctx context.Context, id uuid.UUID) (*model.FlightDTO, error) {
 	var flight model.FlightDTO
 	err := r.db.QueryRow(ctx, "SELECT id, destination_from, destination_to FROM public.flights WHERE id=$1 AND deleted_at IS NULL", id).
 		Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo)
@@ -84,7 +85,7 @@ func (r *FlightRepository) UpdateFlight(ctx context.Context, flight *model.Fligh
 	return nil
 }
 
-func (r *FlightRepository) DeleteFlight(ctx context.Context, id int) error {
+func (r *FlightRepository) DeleteFlight(ctx context.Context, id uuid.UUID) error {
 	result, err := r.db.Exec(ctx, "UPDATE public.flights SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL", id)
 
 	if err != nil {
