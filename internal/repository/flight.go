@@ -3,14 +3,13 @@ package repository
 import (
 	"context"
 
+	"go-api/internal/apperr"
 	"go-api/internal/model"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 )
-
-var ErrNotFound = errors.New("not found")
 
 type FlightRepository struct {
 	db *pgx.Conn
@@ -37,7 +36,7 @@ func (r *FlightRepository) GetAllFlights(ctx context.Context) ([]model.FlightDTO
 	}
 
 	if len(flights) == 0 {
-		return nil, ErrNotFound
+		return nil, apperr.ErrNotFound
 	}
 
 	return flights, nil
@@ -49,7 +48,7 @@ func (r *FlightRepository) GetFlightByID(ctx context.Context, id uuid.UUID) (*mo
 		Scan(&flight.FlightID, &flight.DestinationFrom, &flight.DestinationTo)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, apperr.ErrNotFound
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch flight by ID")
@@ -79,7 +78,7 @@ func (r *FlightRepository) UpdateFlight(ctx context.Context, flight *model.Fligh
 		return errors.Wrap(err, "failed to update flight")
 	}
 	if result.RowsAffected() == 0 {
-		return ErrNotFound
+		return apperr.ErrNotFound
 	}
 
 	return nil
@@ -92,7 +91,7 @@ func (r *FlightRepository) DeleteFlight(ctx context.Context, id uuid.UUID) error
 		return errors.Wrap(err, "failed to delete flight")
 	}
 	if result.RowsAffected() == 0 {
-		return ErrNotFound
+		return apperr.ErrNotFound
 	}
 
 	return nil
