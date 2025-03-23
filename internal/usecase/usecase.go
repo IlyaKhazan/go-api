@@ -10,10 +10,10 @@ import (
 )
 
 type FlightUsecase struct {
-	repo *repository.FlightRepository
+	repo FlightProvider
 }
 
-func NewFlightUsecase(repo *repository.FlightRepository) *FlightUsecase {
+func NewFlightUsecase(repo *repository.FlightRepository) FlightProvider {
 	return &FlightUsecase{repo: repo}
 }
 

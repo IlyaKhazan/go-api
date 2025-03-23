@@ -15,10 +15,10 @@ import (
 )
 
 type Handler struct {
-	flightUC *usecase.FlightUsecase
+	flightUC usecase.FlightProvider
 }
 
-func New(flightUC *usecase.FlightUsecase) *Handler {
+func New(flightUC usecase.FlightProvider) *Handler {
 	return &Handler{flightUC: flightUC}
 }
 
@@ -29,7 +29,7 @@ func (h *Handler) GetAllFlights(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "no flights found"})
 			return
 		}
-		slog.Error("Failed to fetch flights", "error", err)
+		slog.Error("failed to fetch flights", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flights"})
 		return
 	}
@@ -102,7 +102,7 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
 			return
 		}
-		slog.Error("Failed to update flight", "error", err)
+		slog.Error("failed to update flight", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flight"})
 		return
 	}
@@ -124,7 +124,7 @@ func (h *Handler) DeleteFlight(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
 			return
 		}
-		slog.Error("Failed to delete flight", "error", err)
+		slog.Error("failed to delete flight", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete flight"})
 		return
 	}
