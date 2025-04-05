@@ -33,12 +33,12 @@ services:
     networks:
       - mynetwork
     restart: always
-    healthcheck:  # ✅ Added healthcheck to ensure PostgreSQL is ready before go-gin-api starts
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s  # Wait 10s before starting healthchecks
+      start_period: 10s 
 
 volumes:
   pgdata:

@@ -26,10 +26,10 @@ func (h *Handler) GetAllFlights(c *gin.Context) {
 	flightsDTO, err := h.flightUC.GetAllFlights(c)
 	if err != nil {
 		if errors.Is(err, apperr.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no flights found"})
+			c.Status(http.StatusNotFound)
 			return
 		}
-		slog.Error("failed to fetch flights", "error", err)
+		slog.Error("failed to fetch flights", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flights"})
 		return
 	}
@@ -54,7 +54,7 @@ func (h *Handler) GetFlight(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
 			return
 		}
-		slog.Error("failed to fetch flight", "error", err)
+		slog.Error("failed to fetch flight", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create flight"})
 		return
 	}
@@ -78,7 +78,7 @@ func (h *Handler) InsertFlight(c *gin.Context) {
 	}
 
 	resp := mapper.ToFlightResponse(&flightDTO)
-	c.JSON(http.StatusCreated, gin.H{"message": "flight created", "flight": resp})
+	c.JSON(http.StatusCreated, resp)
 }
 
 func (h *Handler) UpdateFlight(c *gin.Context) {
@@ -102,7 +102,7 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
 			return
 		}
-		slog.Error("failed to update flight", "error", err)
+		slog.Error("failed to update flight", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flight"})
 		return
 	}
@@ -121,10 +121,10 @@ func (h *Handler) DeleteFlight(c *gin.Context) {
 	err = h.flightUC.DeleteFlight(c, id)
 	if err != nil {
 		if errors.Is(err, apperr.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+			c.Status(http.StatusNotFound)
 			return
 		}
-		slog.Error("failed to delete flight", "error", err)
+		slog.Error("failed to delete flight", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete flight"})
 		return
 	}

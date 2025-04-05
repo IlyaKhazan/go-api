@@ -5,7 +5,6 @@ import (
 
 	"go-api/internal/apperr"
 	"go-api/internal/model"
-	"go-api/internal/usecase"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
@@ -16,7 +15,7 @@ type FlightRepository struct {
 	db *pgx.Conn
 }
 
-func NewFlightRepository(db *pgx.Conn) usecase.FlightProvider {
+func NewFlightRepository(db *pgx.Conn) FlightProvider {
 	return &FlightRepository{db: db}
 }
 

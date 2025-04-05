@@ -8,11 +8,13 @@ import (
 
 func GetRouter(handler *handler.Handler) *gin.Engine {
 	router := gin.Default()
-	router.GET("/flights", handler.GetAllFlights)
-	router.GET("/flights/:flight_id", handler.GetFlight)
-	router.POST("/flights", handler.InsertFlight)
-	router.PUT("/flights/:flight_id", handler.UpdateFlight)
-	router.DELETE("/flights/:flight_id", handler.DeleteFlight)
+
+	flights := router.Group("/flights")
+	flights.GET("", handler.GetAllFlights)
+	flights.GET("/:flight_id", handler.GetFlight)
+	flights.POST("", handler.InsertFlight)
+	flights.PUT("/:flight_id", handler.UpdateFlight)
+	flights.DELETE("/:flight_id", handler.DeleteFlight)
 
 	return router
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"go-api/internal/model"
-	"go-api/internal/repository"
 
 	uuid "github.com/satori/go.uuid"
 )
@@ -13,8 +12,8 @@ type FlightUsecase struct {
 	flightUC FlightProvider
 }
 
-func NewFlightUsecase(repo *repository.FlightRepository) FlightProvider {
-	return &FlightUsecase{flightUC: repo}
+func NewFlightUsecase(decorator FlightProvider) FlightProvider {
+	return &FlightUsecase{flightUC: decorator}
 }
 
 func (uc *FlightUsecase) GetAllFlights(ctx context.Context) ([]model.FlightDTO, error) {
