@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/joho/godotenv"
@@ -43,4 +44,9 @@ func LoadConfig() (*Config, error) {
 
 	slog.Info("Configuration loaded successfully")
 	return config, nil
+}
+
+func (cfg *Config) GetDBConnString() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
 }

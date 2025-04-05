@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"go-api/internal/apperr"
-	"go-api/internal/mapper"
 	"go-api/internal/model"
 	"go-api/internal/usecase"
 
@@ -36,7 +35,7 @@ func (h *Handler) GetAllFlights(c *gin.Context) {
 
 	flightsResp := make([]model.FlightResponse, len(flightsDTO))
 	for i, flight := range flightsDTO {
-		flightsResp[i] = mapper.ToFlightResponse(&flight)
+		flightsResp[i] = flight.ToFlightResponse()
 	}
 
 	c.JSON(http.StatusOK, flightsResp)
@@ -59,7 +58,7 @@ func (h *Handler) GetFlight(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, mapper.ToFlightResponse(flightDTO))
+	c.JSON(http.StatusOK, flightDTO.ToFlightResponse())
 }
 
 func (h *Handler) InsertFlight(c *gin.Context) {
@@ -70,14 +69,14 @@ func (h *Handler) InsertFlight(c *gin.Context) {
 		return
 	}
 
-	flightDTO := mapper.ToFlightDTO(req)
+	flightDTO := model.ToFlightDTO(req)
 	err := h.flightUC.InsertFlight(c, &flightDTO)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create flight"})
 		return
 	}
 
-	resp := mapper.ToFlightResponse(&flightDTO)
+	resp := flightDTO.ToFlightResponse()
 	c.JSON(http.StatusCreated, resp)
 }
 
@@ -95,7 +94,7 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 		return
 	}
 
-	flightDTO := mapper.ToFlightDTOWithID(req, id)
+	flightDTO := model.ToFlightDTOWithID(req, id)
 
 	if err := h.flightUC.UpdateFlight(c, &flightDTO); err != nil {
 		if errors.Is(err, apperr.ErrNotFound) {
@@ -107,7 +106,7 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 		return
 	}
 
-	resp := mapper.ToFlightResponse(&flightDTO)
+	resp := flightDTO.ToFlightResponse()
 	c.JSON(http.StatusOK, gin.H{"message": "Flight updated", "flight": resp})
 }
 

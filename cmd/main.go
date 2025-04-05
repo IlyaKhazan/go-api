@@ -12,6 +12,9 @@ import (
 	"go-api/internal/repository"
 	"go-api/internal/storage"
 	"go-api/internal/usecase"
+	"go-api/migrations"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
@@ -22,13 +25,23 @@ func main() {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
+	dbURL := cfg.GetDBConnString()
+	if err := migrations.Migrate(dbURL); err != nil {
+		slog.Error("database migration failed", "error", err)
+		os.Exit(1)
+	}
 
-	dbConn, err := storage.GetDBConnect(cfg)
+	dbConn, err := storage.GetDBConnect(dbURL)
 	if err != nil {
 		slog.Error("database connection failed", "error", err)
 		os.Exit(1)
 	}
-	defer dbConn.Close(context.Background())
+	defer func(dbConn *pgx.Conn, ctx context.Context) {
+		err := dbConn.Close(ctx)
+		if err != nil {
+			slog.Error("failed to close database connection", "error", err)
+		}
+	}(dbConn, context.Background())
 
 	flightsRepo := repository.NewFlightRepository(dbConn)
 	cacheDecorator := cache.NewCacheDecorator(flightsRepo)
