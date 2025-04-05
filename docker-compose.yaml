@@ -13,7 +13,7 @@ services:
       - DB_NAME=${DB_NAME}
     depends_on:
       postgres:
-        condition: service_healthy  # ✅ Wait for PostgreSQL to be ready
+        condition: service_healthy 
     networks:
       - mynetwork
     restart: always
@@ -29,16 +29,16 @@ services:
       - POSTGRES_DB=postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./migrations/_init.sql:/docker-entrypoint-initdb.d/_init.sql
     networks:
       - mynetwork
     restart: always
-    healthcheck:  # ✅ Added healthcheck to ensure PostgreSQL is ready before go-gin-api starts
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s  # Wait 10s before starting healthchecks
+      start_period: 10s 
 
 volumes:
   pgdata:
