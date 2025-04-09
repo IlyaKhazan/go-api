@@ -13,20 +13,11 @@ type FlightDTO struct {
 	DestinationTo   string    `db:"destination_to"`
 }
 
-type FlightResponse struct {
-	ID              uuid.UUID `json:"id"`
-	DestinationFrom string    `json:"destination_from"`
-	DestinationTo   string    `json:"destination_to"`
-}
-
-func (dto *FlightDTO) ToFlightResponse() FlightResponse {
-	if dto == nil {
-		return FlightResponse{}
-	}
-	return FlightResponse{
-		ID:              dto.FlightID,
-		DestinationFrom: dto.DestinationFrom,
-		DestinationTo:   dto.DestinationTo,
+func ToFlightDTOWithID(req FlightRequest, id uuid.UUID) FlightDTO {
+	return FlightDTO{
+		FlightID:        id,
+		DestinationFrom: req.DestinationFrom,
+		DestinationTo:   req.DestinationTo,
 	}
 }
 
@@ -37,10 +28,16 @@ func ToFlightDTO(req FlightRequest) FlightDTO {
 	}
 }
 
-func ToFlightDTOWithID(req FlightRequest, id uuid.UUID) FlightDTO {
-	return FlightDTO{
-		FlightID:        id,
-		DestinationFrom: req.DestinationFrom,
-		DestinationTo:   req.DestinationTo,
+type FlightResponse struct {
+	ID              uuid.UUID `json:"id"`
+	DestinationFrom string    `json:"destination_from"`
+	DestinationTo   string    `json:"destination_to"`
+}
+
+func (dto FlightDTO) ToFlightResponse() FlightResponse {
+	return FlightResponse{
+		ID:              dto.FlightID,
+		DestinationFrom: dto.DestinationFrom,
+		DestinationTo:   dto.DestinationTo,
 	}
 }

@@ -1,12 +1,18 @@
-name ?= init_schema
+include .env
+export $(shell sed 's/=.*//' .env)
 
-# Создание новой миграции
-migrate-add: ## Create new migration file, usage: make migrate-add name=<migration_name>
-	@echo "Creating migration: $(name)"
-	goose create --dir migrations $(name) sql
+DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
-# Применить миграции (через твой migrate.go)
-migrate-up: ## Apply all migrations via Go code
-	go run ./migrations
+migrate-up:
+	goose -dir database/migrations postgres "$(DB_URL)" up
 
-# (Если хочешь позже — можно добавить migrate-down тоже через Go)
+migrate-add:
+	goose -dir database/migrations create $(name) sql
+
+migrate-down:
+	goose -dir database/migrations postgres "$(DB_URL)" down
+
+migrate-status:
+	goose -dir database/migrations postgres "$(DB_URL)" status
+
+.PHONY: migrate-up migrate-add migrate-down migrate-status

@@ -76,8 +76,7 @@ func (h *Handler) InsertFlight(c *gin.Context) {
 		return
 	}
 
-	resp := flightDTO.ToFlightResponse()
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, flightDTO.ToFlightResponse())
 }
 
 func (h *Handler) UpdateFlight(c *gin.Context) {
@@ -95,7 +94,6 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 	}
 
 	flightDTO := model.ToFlightDTOWithID(req, id)
-
 	if err := h.flightUC.UpdateFlight(c, &flightDTO); err != nil {
 		if errors.Is(err, apperr.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
@@ -106,14 +104,13 @@ func (h *Handler) UpdateFlight(c *gin.Context) {
 		return
 	}
 
-	resp := flightDTO.ToFlightResponse()
-	c.JSON(http.StatusOK, gin.H{"message": "Flight updated", "flight": resp})
+	c.JSON(http.StatusOK, flightDTO.ToFlightResponse())
 }
 
 func (h *Handler) DeleteFlight(c *gin.Context) {
 	id, err := uuid.FromString(c.Param("flight_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "fnvalid flight ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flight ID"})
 		return
 	}
 
@@ -128,5 +125,5 @@ func (h *Handler) DeleteFlight(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "flight successfully deleted"})
+	c.Status(http.StatusOK)
 }
