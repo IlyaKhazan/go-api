@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"go-api/config"
 	"go-api/database"
@@ -38,7 +39,8 @@ func Run() error {
 	}()
 
 	flightsRepo := repository.NewFlightRepository(dbConn)
-	cacheDecorator := cache.NewDecorator(flightsRepo)
+	cacheDecorator := cache.NewDecorator(flightsRepo, 10*time.Second)
+	cacheDecorator.StartCleanup(1 * time.Minute)
 	flightUC := usecase.NewFlightUsecase(cacheDecorator)
 	handle := handler.New(flightUC)
 	router := GetRouter(handle)
