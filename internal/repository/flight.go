@@ -7,16 +7,15 @@ import (
 	"go-api/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 )
 
 type FlightRepository struct {
-	db *pgxpool.Pool
+	db *pgx.Conn
 }
 
-func NewFlightRepository(db *pgxpool.Pool) FlightProvider {
+func NewFlightRepository(db *pgx.Conn) FlightProvider {
 	return &FlightRepository{db: db}
 }
 

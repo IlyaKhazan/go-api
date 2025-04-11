@@ -12,12 +12,12 @@ import (
 )
 
 type Decorator struct {
-	mu          sync.RWMutex
-	flights     map[uuid.UUID]*model.FlightDTO
 	flightsRepo repository.FlightProvider
+	flights     map[uuid.UUID]*model.FlightDTO
+	mu          sync.RWMutex
 }
 
-func NewDecorator(flightsRepo repository.FlightProvider) repository.FlightProvider {
+func NewCacheDecorator(flightsRepo repository.FlightProvider) repository.FlightProvider {
 	return &Decorator{flightsRepo: flightsRepo}
 }
 
@@ -35,7 +35,30 @@ func (c *Decorator) Set(flight *model.FlightDTO) {
 }
 
 func (c *Decorator) GetAllFlights(ctx context.Context) ([]model.FlightDTO, error) {
-	return c.flightsRepo.GetAllFlights(ctx)
+	c.mu.RLock()
+	if len(c.flights) > 0 {
+		flights := make([]model.FlightDTO, 0, len(c.flights))
+		for _, flight := range c.flights {
+			flights = append(flights, *flight)
+		}
+		c.mu.RUnlock()
+		return flights, nil
+	}
+	c.mu.RUnlock()
+
+	flightsFromRepo, err := c.flightsRepo.GetAllFlights(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	for _, f := range flightsFromRepo {
+		flight := f
+		c.flights[f.FlightID] = &flight
+	}
+	c.mu.Unlock()
+
+	return flightsFromRepo, nil
 }
 
 func (c *Decorator) GetFlightByID(ctx context.Context, id uuid.UUID) (*model.FlightDTO, error) {
@@ -43,19 +66,15 @@ func (c *Decorator) GetFlightByID(ctx context.Context, id uuid.UUID) (*model.Fli
 		return flight, nil
 	}
 
-	flight, err := c.flightsRepo.GetFlightByID(ctx, id)
-	if err != nil {
+	if flight, err := c.flightsRepo.GetFlightByID(ctx, id); err == nil {
+		c.Set(flight)
+		return flight, nil
+	} else {
 		return nil, err
 	}
-	c.Set(flight)
-	return flight, nil
 }
 
 func (c *Decorator) InsertFlight(_ context.Context, flight *model.FlightDTO) error {
-	if err := c.flightsRepo.InsertFlight(context.Background(), flight); err != nil {
-		return err
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, exists := c.flights[flight.FlightID]; exists {
@@ -66,10 +85,6 @@ func (c *Decorator) InsertFlight(_ context.Context, flight *model.FlightDTO) err
 }
 
 func (c *Decorator) UpdateFlight(_ context.Context, flight *model.FlightDTO) error {
-	if err := c.flightsRepo.UpdateFlight(context.Background(), flight); err != nil {
-		return err
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
