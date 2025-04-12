@@ -9,12 +9,14 @@ import (
 	"go-api/database"
 	"go-api/internal/cache"
 	"go-api/internal/handler"
+	"go-api/internal/metrics"
 	"go-api/internal/repository"
 	"go-api/internal/storage"
 	"go-api/internal/usecase"
 )
 
 func Run() error {
+	metrics.Init()
 	slog.Info("Starting application...")
 
 	cfg, err := config.LoadConfig()

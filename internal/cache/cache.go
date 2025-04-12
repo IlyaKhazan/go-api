@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"go-api/internal/metrics"
 	"go-api/internal/model"
 	"go-api/internal/repository"
 
@@ -26,9 +27,11 @@ type flightWithTTL struct {
 }
 
 func NewDecorator(flightsRepo repository.FlightProvider, ttl time.Duration) *Decorator {
-	return &Decorator{flightsRepo: flightsRepo,
-		flights: make(map[uuid.UUID]flightWithTTL),
-		ttl:     ttl}
+	return &Decorator{
+		flightsRepo: flightsRepo,
+		flights:     make(map[uuid.UUID]flightWithTTL),
+		ttl:         ttl,
+	}
 }
 
 func (c *Decorator) Get(id uuid.UUID) (*model.FlightDTO, bool) {
@@ -38,7 +41,6 @@ func (c *Decorator) Get(id uuid.UUID) (*model.FlightDTO, bool) {
 	if !exists || time.Now().After(flight.expiresAt) {
 		return nil, false
 	}
-
 	return flight.data, true
 }
 
@@ -49,6 +51,7 @@ func (c *Decorator) Set(flight *model.FlightDTO) {
 		data:      flight,
 		expiresAt: time.Now().Add(c.ttl),
 	}
+	metrics.CacheSize.Set(float64(len(c.flights)))
 }
 
 func (c *Decorator) GetAllFlights(ctx context.Context) ([]model.FlightDTO, error) {
@@ -57,9 +60,10 @@ func (c *Decorator) GetAllFlights(ctx context.Context) ([]model.FlightDTO, error
 
 func (c *Decorator) GetFlightByID(ctx context.Context, id uuid.UUID) (*model.FlightDTO, error) {
 	if flight, exists := c.Get(id); exists {
+		metrics.CacheHits.Inc()
 		return flight, nil
 	}
-
+	metrics.CacheMisses.Inc()
 	flight, err := c.flightsRepo.GetFlightByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -82,6 +86,8 @@ func (c *Decorator) InsertFlight(_ context.Context, flight *model.FlightDTO) err
 		data:      flight,
 		expiresAt: time.Now().Add(c.ttl),
 	}
+	metrics.InsertTotal.Inc()
+	metrics.CacheSize.Set(float64(len(c.flights)))
 	return nil
 }
 
@@ -101,6 +107,7 @@ func (c *Decorator) UpdateFlight(_ context.Context, flight *model.FlightDTO) err
 		data:      flight,
 		expiresAt: time.Now().Add(c.ttl),
 	}
+	metrics.UpdateTotal.Inc()
 	return nil
 }
 
@@ -112,6 +119,8 @@ func (c *Decorator) DeleteFlight(ctx context.Context, id uuid.UUID) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.flights, id)
+	metrics.DeleteTotal.Inc()
+	metrics.CacheSize.Set(float64(len(c.flights)))
 	return nil
 }
 
@@ -132,8 +141,12 @@ func (c *Decorator) StartCleanup(interval time.Duration) {
 				}
 			}
 
+			metrics.CacheExpired.Add(float64(removed))
+			metrics.CacheSize.Set(float64(len(c.flights)))
+			metrics.CacheLastCleanup.Set(float64(time.Now().Unix()))
 			c.mu.Unlock()
-			slog.Info("✅ cache cleanup cycle complete", "expired_removed", removed, "remaining", len(c.flights))
+
+			slog.Info("cache cleanup cycle complete", "expired_removed", removed, "remaining", len(c.flights))
 		}
 	}()
 }
