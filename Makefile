@@ -3,7 +3,6 @@ export $(shell sed 's/=.*//' .env 2>/dev/null)
 
 DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
-# Применить все миграции
 migrate-up:
 	docker-compose exec go-gin-api goose -dir database/migrations postgres "$(DB_URL)" up
 

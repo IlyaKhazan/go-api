@@ -1,11 +1,13 @@
 -- +goose Up
 -- +goose StatementBegin
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS flights (
-                                       id SERIAL PRIMARY KEY,
-                                       destination_from TEXT NOT NULL,
-                                       destination_to TEXT NOT NULL,
-                                       deleted_at TIMESTAMP DEFAULT NULL
-);
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    destination_from TEXT NOT NULL,
+    destination_to TEXT NOT NULL,
+    deleted_at TIMESTAMP DEFAULT NULL
+    );
 -- +goose StatementEnd
 
 -- +goose Down
